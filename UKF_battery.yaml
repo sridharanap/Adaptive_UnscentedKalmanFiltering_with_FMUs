@@ -1,0 +1,130 @@
+random:
+  seed: 1
+
+# ------------------------------------------------ FMU & SIMULATION --------------------------------------------------------
+fmu:
+  path: "./build/fmus/BatteryModel.fmu"   # ! the exact .\xxx.fmu FMU file path
+  model_type: "ModelExchange"             # ! "ModelExchange" | "CoSimulation"
+
+simulation:
+  time_min: 100                          # ! total simulation time [min]
+  delta_T: 1.0                           # ! sampling time [s]
+
+# -------------------------- INPUTS (see Readme.md for more info) ------------------------------
+inputs:
+  module: "input_simple"            # ! .py python module name on project root
+  function: "input_simple"          # ! name_of_function inside module - e.g: def name_of_function(time_min, delta_T) -> np.ndarray
+  fmu_input_names: ["I"]            # ! list of inputs in "row-order" of the returned numpy array (must match the ModelVariable name in the FMU-xml file case-sensitively) (Atleast one input must be provided)
+
+# ---------------------------------------------------- JOINTUKF -------------------------------------------------------
+ukf:
+  normalize_states: true                  # ! flag for System scaling
+  plot_covariance: true                   # ! flag for including covariance bounds in estimation plots
+  alpha: 1.0e-4                           # ! UKF parameter for sigma point spread
+  beta: 2.0                               # ! UKF parameter for prior knowledge of the distribution
+  kappa: 0.0                              # ! UKF parameter for secondary spread
+  
+  # --------- Recalibration settings ---------
+  recalibration_feature: true            # ! flag to enable/disable recalibration functionality of the UKF based on NIS metric
+  consistency_check_start: 700            # ! time step to start NIS consistency checks (to avoid false positives during initial transient)
+  consistency_steps_retrigger: 400        # ! number of consecutive consistent steps to re-trigger recalibration off
+  inconsistency_steps_retrigger: 1000     # ! number of consecutive inconsistent steps to re-trigger recalibration on
+
+states:
+  names: ["SOC", "Temp"]                  # ! system states (must match the ModelVariable name in the FMU-xml file case-sensitively)
+  initial_values: [25.0, 12.5]            # ! initial state value(s) x0 for the JointUKF
+  initial_error: [25.0, 12.5]             # ! initial state uncertainty value(s) P0 for the JointUKF
+  process_noise_std: [1.0e-5, 1.0e-5]     # ! assumed process noise for states (Q_states)
+  scale_factors_state: [100.0, 90.0]            # ! scale factors for state normalization (division by these scale_factors)(only used if normalize_states == true)
+
+parameters:
+  config_mode: "yaml"                     # ! "yaml" | "prompt" ("prompt": query user input of 'estimated' parameters during runtime || "yaml": use this yaml file values)
+  all: ["U0Nom", "dU0", "Cap0", "Cap_heat", "Cdiss_heat"]      # ! all tunable parameters in the FMU (must match the ModelVariable name in the FMU-xml file case-sensitively)
+  scale_factors_parameter_all: [679.0, 1.2, 60.0, 500000.0, 1.2e-04]     # ! scale factors for all parameters normalization (division by these scale_factors)(only used if normalize_states == true)
+
+  # -------- only if config_mode == "yaml" ----------
+  # estimated: ["U0Nom", "dU0", "Cap0", "Cap_heat", "Cdiss_heat"]   # parameters that need to be estimated (choose from "all" list)
+  estimated: ["U0Nom", "Cap0", "Cap_heat", "Cdiss_heat"]
+  # initial_values: [1018.5, 1.8, 90.0, 750000.0, 0.00018]          # initial parameter value(s) x0 for the JointUKF (len(initial_values) != len(estimated))
+  initial_values: [1018.5, 90.0, 750000.0, 0.00018]
+  # initial_error: [339.5, 0.6, 30.0, 250000.0, 0.00006]            # initial parameter values uncertainty(s) P0 for the JointUKF (len(initial_std) != len(estimated))
+  initial_error: [339.5, 30.0, 250000.0, 0.00006]
+  # process_noise_std: [1.0e-6, 1.0e-6, 1.0e-6, 1.0e-6, 1.0e-6]     # small assumed process noise for all estimated parameters (Q_parameters) (len(process_noise_std) != len(estimated))
+  process_noise_std: [1.0e-6, 1.0e-6, 1.0e-6, 1.0e-6]
+
+measurements:
+  config_mode: "yaml"           # ! "yaml" | "prompt" ("prompt": query user input during runtime || "yaml": use this yaml file values)
+  all: ["Voltage", "Temp", "T_surf", "SOC"]       # ! List of all possible Sensor signals from the system to choose from (must match the model variable names defined in the FMU-xml file)
+  scale_factors_measurement_all: [192.0, 90.0, 90.0, 100.0]   # ! scale factors for measurements (assumed measurement noise scaling by these scale_factors)
+
+  # -------- only if config_mode == "yaml" ----------
+  available_measurements: ["Voltage", "Temp"]        # List of available Sensor signals to the JointUKF (choose from "all" list)
+  measurement_noise_std: [1.0e-6, 1.0e-6]            # assumed measurement noise for available sensors (R_measurements) (len(measurement_noise_std) != len(available_measurements))
+
+# ------------------------------ Sensor Emulation (see Readme.md for more info) ------------------------------
+sensor:
+  sensor_emulation: true                        # ! flag to enable/disable sensor emulation module
+
+  # If sensor_emulation == false, sensor signals are read from an Excel file (inside .\input\"file_name.xlsx") with the following configuration:
+  excel:
+    file: "sensor_data.xlsx"                    # Excel file name for reading sensor signals (if sensor_emulation is false)
+    sheet:
+      X_true: "X_true"                          # Excel Sheet name for true states
+      Y_true: "Y_true"                          # Excel Sheet name for true measurements (without noise)
+      Y_noised: "Y_noised"                      # Excel Sheet name for noisy measurements (with noise)
+      Y_dropped: "Y_dropped"                    # Excel Sheet name for noisy measurements with drops (NaN for dropped samples where first sample is always available!)
+      parameters_true: "parameters_true"        # Excel Sheet name for true parameter values (if parameter drift is included in the emulation)
+
+  # If sensor_emulation == true, the following configuration is used to emulate sensor signals (see Readme.md for more details on the emulation process)
+  initial_states_true: [50.0, 25.0]             # ! initial true state value(s) x0 for the sensor emulation module (same order as ukf.states.names)
+  process_noise_std_true: [1.0e-5, 1.0e-5]      # ! process noise as "random walk" for true states in the sensor emulation module
+  measurement_noise_std_true: [1.0e-6, 1.0e-6]          # ! measurement noise as "random walk" for emulated sensor signals (same order and size as measurements.available_measurements)
+
+  parameters_true: [679.0, 1.2, 60.0, 500000.0, 1.2e-04]  # ! true parameter values for the sensor emulation module (!! must be entered in the same order as parameters.all)
+  
+  # --------- Configuring Measurement Drops for each measurement ---------
+  # # # The measurement at initial-time is always available.
+  # # # deltaT_m_multiples[i] = k  -> keep every k-th sample for measurement i
+  deltaT_m_multiples: [1, 1]             # ! list of dropping integers for each measurement signal. Must equal len(measurements.available_measurements)
+
+  # --------- Internal Parameter drift configuration (optional; keys must be in parameters.all)
+  parameter_drifts:
+    U0Nom:
+      enabled: false
+      windows:
+        - t_start: 2000
+          t_end: 3000
+          drift_final_factor: 1.05   # E.g., drift_final_factor: 1.05 -> final parameter value at t_end is 105% of the initial parameter value
+    
+    dU0:
+      enabled: false
+      windows:
+        - t_start: 2000
+          t_end: 3000
+          drift_final_factor: 0.95   # E.g., drift_final_factor: 0.95 -> final parameter value at t_end is 95% of the initial parameter value
+    
+    Cap0:
+      enabled: false
+      windows:
+        - t_start: 3000
+          t_end: 4000
+          drift_final_factor: 0.95   # E.g., drift_final_factor: 0.95 -> final parameter value at t_end is 95% of the initial parameter value
+        # - t_start: 4500
+        #   t_end: 5000
+        #   drift_final_factor: 0.90 
+
+    Cap_heat:
+      enabled: false
+      windows:
+        - t_start: 2000
+          t_end: 3000
+          drift_final_factor: 1.1   # E.g., drift_final_factor: 0.95 -> final parameter value at t_end is 95% of the initial parameter value
+    
+    Cdiss_heat:
+      enabled: false
+      windows:
+        - t_start: 2000
+          t_end: 3000
+          drift_final_factor: 0.9   # E.g., drift_final_factor: 0.95 -> final parameter value at t_end is 95% of the initial parameter value
+      
+    

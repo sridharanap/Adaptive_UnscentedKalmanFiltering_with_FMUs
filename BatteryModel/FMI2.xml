@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<fmiModelDescription 
+  fmiVersion="2.0" 
+  modelName="BatteryModel"  
+  description="This model implements a battery model (Process and Measurement Transitions)" 
+  generationTool="Custom CMake FMI Exporter"
+  guid="{BD403596-3166-4232-ABC2-132BDF73E645}"
+  numberOfEventIndicators="0">
+
+  <ModelExchange 
+    modelIdentifier="BatteryModel"
+    canNotUseMemoryManagementFunctions="true"
+    canGetAndSetFMUstate="true"
+    canSerializeFMUstate="true">
+    <!-- providesDirectionalDerivative="true" --> <!-- requires getDirectionalDerivative method -->
+  </ModelExchange>
+
+  <CoSimulation
+    modelIdentifier="BatteryModel"
+    canHandleVariableCommunicationStepSize="true"
+    canNotUseMemoryManagementFunctions="true"
+    canGetAndSetFMUstate="true"
+    canSerializeFMUstate="true"
+    providesDirectionalDerivative="true">
+  </CoSimulation>
+
+  <LogCategories>
+    <Category name="logEvents" description="Logs simulation events"/>
+    <Category name="logStatusError" description="Logs error messages"/>
+  </LogCategories>
+
+  <DefaultExperiment startTime="0" stopTime="1000" stepSize="1"/>
+
+  <ModelVariables>
+    <ScalarVariable name="time" valueReference="0" causality="independent" variability="continuous" description="Simulation time">
+      <Real/>
+    </ScalarVariable>
+    <!-- States -->
+    <ScalarVariable name="SOC" valueReference="1" causality="output" variability="continuous" initial="exact" description="State 1: State of Charge in %">
+      <Real start="0.0"/>
+    </ScalarVariable>
+    <ScalarVariable name="der(SOC)" valueReference="2" causality="local" variability="continuous" initial="calculated">
+      <Real derivative="2"/>
+    </ScalarVariable>
+    <ScalarVariable name="Temp" valueReference="3" causality="output" variability="continuous" initial="exact" description="State 2: Battery core temperature (degC)">
+      <Real start="0.0"/>
+    </ScalarVariable>
+    <ScalarVariable name="der(Temp)" valueReference="4" causality="local" variability="continuous" initial="calculated">
+      <Real derivative="4"/>
+    </ScalarVariable>
+    <!-- Input(s) -->
+    <ScalarVariable name="I" valueReference="5" causality="input" variability="continuous" description="Input 1: Current (A)">
+      <Real start="0.0"/>
+    </ScalarVariable>
+    <!-- Known Parameters -->
+    <ScalarVariable name="a_Ri" valueReference="6" causality="parameter" variability="tunable" initial="exact" description="factor for temperature dependence of internal resistance">
+      <Real start="0.17947712574688843"/>
+    </ScalarVariable>
+    <ScalarVariable name="b_Ri" valueReference="7" causality="parameter" variability="tunable" initial="exact" description="factor for temperature dependence of internal resistance">
+      <Real start="0.053489764834995665"/>
+    </ScalarVariable>
+    <ScalarVariable name="c_Ri" valueReference="8" causality="parameter" variability="tunable" initial="exact" description="factor for temperature dependence of internal resistance">
+      <Real start="0.11487499999999978"/>
+    </ScalarVariable> 
+    <!-- Unknown Parameters -->
+    <ScalarVariable name="U0Nom" valueReference="9" causality="parameter" variability="tunable" initial="exact" description="Nominal voltage (V)">
+      <Real start="1018.5"/>
+      <!-- <Real start="679.0"/> -->
+    </ScalarVariable>
+    <ScalarVariable name="dU0" valueReference="10" causality="parameter" variability="tunable" initial="exact" description="Nominal voltage curve slope">
+      <!-- <Real start="1.8"/> -->
+      <Real start="1.2"/>
+    </ScalarVariable>
+    <ScalarVariable name="Cap0" valueReference="11" causality="parameter" variability="tunable" initial="exact" description="Initial Battery capacity (Ah)">
+      <Real start="90.0"/>
+      <!-- <Real start="60.0"/> -->
+    </ScalarVariable>
+    <ScalarVariable name="Cap_heat" valueReference="12" causality="parameter" variability="tunable" initial="exact" description="heat capacity (J/K)">
+      <Real start="750000.0"/>
+      <!-- <Real start="500000.0"/> -->
+    </ScalarVariable>
+    <ScalarVariable name="Cdiss_heat" valueReference="13" causality="parameter" variability="tunable" initial="exact" description="heat dissipation rate (1/s)">
+      <Real start="0.00018"/>
+      <!-- <Real start="0.00012"/> -->
+    </ScalarVariable>
+    <!-- Measurement Output quantities -->
+    <ScalarVariable name="Voltage" valueReference="14" causality="output" variability="continuous" initial="calculated">
+      <Real/>
+    </ScalarVariable>
+    <ScalarVariable name="Temp_surf" valueReference="15" causality="output" variability="continuous" initial="calculated">
+      <Real/>
+    </ScalarVariable>
+    <!-- Initialisable Parameters -->
+    <ScalarVariable name="T_amb" valueReference="16" causality="parameter" variability="tunable" initial="exact" description="ambient temperature (degC)">
+      <Real start="22.0"/>
+    </ScalarVariable>
+  </ModelVariables>
+
+  <ModelStructure>
+    <!-- Outputs -->
+    <Outputs>
+      <Unknown index="2" dependencies=""/> <!-- SOC -->
+      <Unknown index="4" dependencies=""/> <!-- temp -->
+      <Unknown index="15" dependencies=""/> <!-- Voltage -->
+      <Unknown index="16" dependencies=""/> <!-- Temp_surf -->
+    </Outputs>
+
+    <Derivatives>
+      <Unknown index="3" dependencies="6 12" dependenciesKind="dependent dependent"/>
+      <Unknown index="5" dependencies="2 4 6 7 8 9 13 14 17" dependenciesKind="dependent dependent dependent dependent dependent dependent dependent dependent dependent"/>
+    </Derivatives>
+
+    <InitialUnknowns>
+      <!-- Include those variables whose Initial values = 'calculated' -->
+      <Unknown index="3" dependencies="6 12" dependenciesKind= "dependent dependent"/> 
+      <Unknown index="5" dependencies="2 4 6 7 8 9 13 14 17" dependenciesKind= "dependent dependent dependent dependent dependent dependent dependent dependent dependent"/>
+      <Unknown index="15" dependencies="2 4 6 7 8 9 10 11" dependenciesKind= "dependent dependent dependent dependent dependent dependent dependent dependent"/>
+      <Unknown index="16" dependencies="4 17" dependenciesKind= "dependent dependent"/>
+    </InitialUnknowns>
+  </ModelStructure>
+
+</fmiModelDescription>
